@@ -128,6 +128,56 @@ describe("process adapter execute wake env", () => {
     expect(env.PAPERCLIP_RUN_ID).toBe("run-1");
   });
 
+  it("prefers context.taskId over context.issueId when both are present", async () => {
+    runChildProcessMock.mockResolvedValue({
+      exitCode: 0,
+      signal: null,
+      timedOut: false,
+      stdout: "",
+      stderr: "",
+    });
+
+    await execute(
+      baseCtx({
+        context: {
+          taskId: "task-wins",
+          issueId: "issue-loses",
+        },
+      }),
+    );
+
+    const env = runChildProcessMock.mock.calls[0][3].env as Record<string, string>;
+    expect(env.PAPERCLIP_TASK_ID).toBe("task-wins");
+  });
+
+  it("treats whitespace-only taskId and issueId as absent", async () => {
+    runChildProcessMock.mockResolvedValue({
+      exitCode: 0,
+      signal: null,
+      timedOut: false,
+      stdout: "",
+      stderr: "",
+    });
+
+    await execute(
+      baseCtx({
+        context: {
+          taskId: "   ",
+          issueId: "\t",
+          wakeReason: "  ",
+          wakeCommentId: "\n",
+          issueIds: ["  ", "issue-ok", ""],
+        },
+      }),
+    );
+
+    const env = runChildProcessMock.mock.calls[0][3].env as Record<string, string>;
+    expect(env.PAPERCLIP_TASK_ID).toBeUndefined();
+    expect(env.PAPERCLIP_WAKE_REASON).toBeUndefined();
+    expect(env.PAPERCLIP_WAKE_COMMENT_ID).toBeUndefined();
+    expect(env.PAPERCLIP_LINKED_ISSUE_IDS).toBe("issue-ok");
+  });
+
   it("prefers runtime wake TASK_ID over adapterConfig.env spoof", async () => {
     runChildProcessMock.mockResolvedValue({
       exitCode: 0,
